@@ -72,6 +72,8 @@ class atoms_helper:
             elif isinstance(self.surface_type, int):
                 self.elements.append(chemical_symbols[self.surface_type])
 
+        self.sort_atoms()
+
     def sort_atoms(self):
         """
         Sorts atoms by adsorbate, adsorbate coordinated, surface coordinated,
