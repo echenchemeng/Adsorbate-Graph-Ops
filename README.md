@@ -1,4 +1,6 @@
-Use the atoms_helper object (under atoms_helper.py), put in your input data. It'll generate a graph as an object attribute and assign each atom its position (adsorbate/slab, coordinated or not).
+Use the atoms_helper object (under atoms_helper.py), put in your input data. It'll generate a graph as an object attribute and assign each atom its position (adsorbate/slab, coordinated or not). 
+
+You can use a variety of input format data: ASE uploadable data will guess your bond indices. DDEC6 outputs can be represented in networkX form and bond orders rounded to the nearest half-integer bond index.
 
 You can then make a subgraph of the adsorbate and however many extra slab atoms you want connected to the coordinated adsorbate atoms.
 
