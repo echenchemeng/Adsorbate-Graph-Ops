@@ -31,6 +31,35 @@ def remove_small_edges(graph, edge_attribute = 'weight', cutoff = 0.3):
 
     return copy_graph
 
+def simplify_graph(original_graph, substrate = 'Pt', cutoff = 0.3):
+    
+    graph = original_graph.copy()
+    
+    graph = remove_small_edges(graph, cutoff = cutoff)
+    
+    keep = []
+    
+    for node in graph.nodes:
+        if graph.nodes[node]['element'] == substrate:
+            continue
+        else:
+            neighbors = list(graph.neighbors(node))
+            keep.append(node)
+            for i in neighbors:
+                if graph.edges[i, node]['weight'] > cutoff:
+                    keep.append(i)
+            
+    keeps = set(keep)
+    simple_graph = graph.subgraph(keeps).copy()
+    
+    for i in simple_graph.edges:
+        if simple_graph.nodes[i[0]]['element'] not in ['C','H','O'] and \
+            simple_graph.nodes[i[1]]['element'] not in ['C','H','O']:
+                
+            simple_graph.remove_edge(i[0], i[1])
+            
+    return simple_graph
+
 def assign_bond_index(graph_original, valency_dict = {'H': 1,
                                              'O': 2,
                                              'N': 3,

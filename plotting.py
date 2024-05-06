@@ -12,6 +12,7 @@ from ase.data import chemical_symbols
 from ase import formula
 import numpy as np
 import copy
+
 def draw_surf_graph(graph, cutoff = 0.3, 
                     node_label_type = 'element', edge_labels = False, edge_label_type = 'weight'):
    

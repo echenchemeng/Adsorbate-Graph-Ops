@@ -6,20 +6,13 @@ Created on Mon Mar 28 13:23:21 2022
 """
 
 import networkx as nx
-import numpy as np
-
-import pyomo.environ as pe
-import pyomo.opt as po
 
 from ase.data import chemical_symbols
 from ase import formula
-
-from collections import Counter
-
-import pysmiles
 from ase.io import read
 
 from AtomsHelper.conversions import graph_to_atoms, atoms_to_graph, ddec6_to_graph
+from AtomsHelper import graph_ops
 
 class atoms_helper:
     
@@ -31,7 +24,16 @@ class atoms_helper:
     
     """
     
-    def __init__(self, input_data, surface_type = 'Pt', vasp = None, atoms = None, solver = 'glpk', distance_tune = 1.2, H_dist = 2.75, ddec6 = None):
+    def __init__(self, input_data, 
+                 surface_type = 'Pt', 
+                 asp = None, 
+                 atoms = None, 
+                 solver = 'glpk', 
+                 distance_tune = 1.2,
+                 H_dist = 2.75, 
+                 ddec6 = None,
+                 bond_cutoff = 0.3,
+                 convert = True):
          
        
         """
@@ -44,21 +46,24 @@ class atoms_helper:
         if isinstance(input_data, str):
             if 'DDEC6' in input_data or ddec6:
                 
-                self.full_graph, self.graph = ddec6_to_graph(input_data)
+                self.full_graph = ddec6_to_graph(input_data)
+                self.graph = graph_ops.remove_small_edges(self.full_graph)
                 
-                self.atoms = graph_to_atoms(self.graph)
+                self.atoms = graph_to_atoms(self.graph, self.bond_cutoff)
                 
             else:
                 try:
                     self.atoms = read(input_data)
-                    self.graph = atoms_to_graph(self.atoms)
+                    if convert: 
+                        self.graph = atoms_to_graph(self.atoms)
                 except Exception as e:
                     print("Can't read input")
                     print(e)
                     
         if isinstance(input_data, nx.classes.graph.Graph):
             self.graph = input_data
-            self.atoms = graph_to_atoms(self.graph)
+            if convert:
+                self.atoms = graph_to_atoms(self.graph)
         
         self.elements = ['H','O','N','C']
         
@@ -72,7 +77,11 @@ class atoms_helper:
             elif isinstance(self.surface_type, int):
                 self.elements.append(chemical_symbols[self.surface_type])
 
-        self.sort_atoms()
+        try:
+            self.sort_atoms()
+            
+        except:
+            pass
 
     def sort_atoms(self):
         """
@@ -168,6 +177,8 @@ class atoms_helper:
         
     def gen_ads_subgraph(self, cluster_adjacency = 1, estimate_bond_index = True):
         
+        
+        
         nodes = set(i for i in self.graph.nodes if 'ads' in self.graph.nodes[i]['system'])
         adds = []
         
@@ -188,10 +199,6 @@ class atoms_helper:
         draw_surf_graph(self.graph, cutoff = cutoff, 
                             node_label_type = node_label_type, edge_labels = edge_labels, edge_label_type = edge_label_type)
         
-    def get_SMILES_string(self):    
-        self.smiles_string = pysmiles.write_smiles(self.graph)
-
-        
     def generalize_graph_metal(self):
         if not self.graph:
             print('Generalizing metal error: No initial graph generated')
@@ -200,6 +207,8 @@ class atoms_helper:
         for n in self.graph.nodes(data=True):
             if self.graph.nodes[n[0]]['element'] == self.surface_type:
                 self.graph.nodes[n[0]]['element']='M'
+                
+    
         
 if __name__=="__main__":
 
@@ -216,8 +225,8 @@ if __name__=="__main__":
     
     ase_obj = read(vasp_path)
     ddec6_obj ='Examples/ddec6/CH2CHCH3CH3/DDEC6_even_tempered_net_atomic_charges.xyz'
-    # vasp = atoms_helper(ddec6_obj)
-    vasp = atoms_helper(vasp_path)
+    vasp = atoms_helper(ddec6_obj)
+    # vasp = atoms_helper(vasp_path)
     vasp.sort_atoms()
     vasp.gen_ads_subgraph(cluster_adjacency = 1)
     # vasp = geom2graph(vasp = 'Examples/ase_to_graph/CONTCAR_CHCH_holhol')
@@ -234,7 +243,6 @@ if __name__=="__main__":
     #     vasp.atoms[i].symbol = 'Au'
     # vasp.add_h_surf_bonds()
     # vasp.gen_graph(fill_bonds = True, verbose=True)
-    vasp.get_SMILES_string()
     #print(vasp.smiles_string)
     vasp.get_gcn()
     vasp.draw_graph(edge_labels=True, edge_label_type = 'bond_index', cutoff = False)

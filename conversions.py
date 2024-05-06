@@ -15,8 +15,12 @@ import re
 
 import networkx as nx
 
-from AtomsHelper.graph_ops import remove_small_edges
+
 from AtomsHelper.utils import min_img_dist
+
+from rdkit import Chem
+from rdkit.Chem.rdchem import BondType
+
 
 def graph_to_atoms(graph, periodic_boundary_condition = [1,1,1],
                    graph_keys = {'element': 'symbol',
@@ -91,10 +95,11 @@ def ddec6_to_graph(directory = None,
         import os
         thisdir = os.getcwd()
         
-        if any(['DDEC6' in i for i in directory.rsplit('/', 1)]):
-            file_path = directory.rsplit('/',1)[0]
         
-        os.chdir(file_path)
+        if any(['DDEC6' in i for i in directory.rsplit('/', 1)]):
+            directory = directory.rsplit('/',1)[0]
+        
+        os.chdir(directory)
         
     periodic = np.array([p for p in itertools.product([-1, 0, 1], repeat=3)])
 
@@ -195,22 +200,171 @@ def ddec6_to_graph(directory = None,
     if directory:
         os.chdir(thisdir)
         
-    truncated_graph = remove_small_edges(graph, cutoff = weight_cutoff)
         
-    return graph, truncated_graph
+    return graph
 
+
+def graph_to_mol(graph, 
+              metal = 'Pt', 
+              gen_m = False, 
+              edge_property = 'weight',
+              return_mapping = True):
     
+    """
+    Converts networkx graph (self.g) into an rdkit mol
+    
+    Bonds are rounded to nearest half, but decimal values are still 
+    kept via bond property
+    
+    In
+    -------
+    self: self.g
+
+    Returns
+    -------
+    self: self.mol
+
+    """
+    
+    rdkit_bond_chart = {0.: BondType.ZERO,
+                        0.5: BondType.SINGLE,
+                        1.: BondType.SINGLE,
+                        1.5: BondType.ONEANDAHALF,
+                        2.: BondType.DOUBLE,
+                        2.5: BondType.TWOANDAHALF,
+                        3.: BondType.TRIPLE, 
+                        3.5: BondType.THREEANDAHALF,
+                        4.: BondType.QUADRUPLE
+                        }
+    
+    g = graph.copy()
+    
+    mol = Chem.RWMol()
+    atomic_nums = nx.get_node_attributes(g, 'element')
+    node_to_idx = {}
+    edge_to_idx = {}
+    for node in g.nodes():
+        
+        a=Chem.Atom(atomic_nums[node])
+        idx = mol.AddAtom(a)
+        mol.GetAtomWithIdx(idx).SetIntProp('nx_idx', int(node))
+        node_to_idx[node] = idx
+
+    bond_weight = nx.get_edge_attributes(g, edge_property)
+    bond_length = nx.get_edge_attributes(g, 'distance')
+    
+    for edge in g.edges():
+        
+        first, second = edge
+        ifirst = node_to_idx[first]
+        isecond = node_to_idx[second]
+        bond = bond_weight[first, second]
+        
+        if g.nodes[first]['element'] == g.nodes[second]['element'] == metal:
+            bond_type = rdkit_bond_chart[1.]
+            bond_index = 1.
+        
+        else:
+            bond_index = float(round(bond*2))/2
+            bond_type = rdkit_bond_chart[bond_index]
+        if bond_length:
+            bond_distance = round(bond_length[first, second], 5)
+        
+        mol.AddBond(ifirst, isecond, bond_type)
+        edge_to_idx[first, second] = (ifirst, isecond)
+        mol.GetBondBetweenAtoms(ifirst, isecond).SetDoubleProp('bond_index', bond_index)
+        mol.GetBondBetweenAtoms(ifirst, isecond).SetDoubleProp('weight', bond)
+        
+        if bond_length:
+            mol.GetBondBetweenAtoms(ifirst, isecond).SetDoubleProp('distance', bond_distance)
+    
+    mol = mol
+    node_to_idx
+    edge_to_idx
+    
+    if return_mapping:
+        return mol, node_to_idx, edge_to_idx
+    else:
+        return mol
+
+def mol_to_graph(mol, bondids=None):
+    """
+    Straight up, Himaghna Bhattacharjee's function.
+    Check it out here:https://github.com/himaghna
+    
+    rdkit mol to nx graph
+    
+    Parameters
+    ----------
+    mol: RDKIT molecule object
+    bondids: tuple
+        Bond-ids making the graph.
+    Returns
+    -------
+        networkx Graph object.
+    """
+    g = nx.Graph()
+    
+    mol_idx = set()
+    
+    if not bondids:
+        bondids = [i.GetIdx() for i in list(mol.GetBonds())]
+    
+    for bondid in bondids:
+        
+        Bond = mol.GetBondWithIdx(bondid)
+        
+        bond_props = Bond.GetPropsAsDict()
+        
+        begin_atom_idx = Bond.GetBeginAtomIdx()
+        end_atom_idx = Bond.GetEndAtomIdx()
+        
+        if begin_atom_idx not in mol_idx:
+        
+            g.add_node(begin_atom_idx,
+                        atomic_number=(mol.GetAtomWithIdx(begin_atom_idx))
+                                .GetAtomicNum(),
+                        element=(mol.GetAtomWithIdx(begin_atom_idx))
+                                .GetSymbol())
+            
+            mol_idx.add(begin_atom_idx)
+            
+        if end_atom_idx not in mol_idx:
+            
+            g.add_node(end_atom_idx,
+                        atomic_number=(mol.GetAtomWithIdx(end_atom_idx))
+                                .GetAtomicNum(),
+                        element=(mol.GetAtomWithIdx(end_atom_idx))
+                                .GetSymbol())
+            mol_idx.add(begin_atom_idx)
+            
+            
+        g.add_edge(begin_atom_idx, end_atom_idx,
+                   **bond_props)
+
+    return g
     
 if __name__=='__main__':
-    
+    from AtomsHelper.atoms_helper import atoms_helper
     from AtomsHelper.plotting import draw_surf_graph as dsg
-    from ase.visualize import view
-    #from AtomsHelper.ads_graph import geom2graph
+    from AtomsHelper.graph_ops import remove_small_edges  
+    from rdkit.Chem.Draw import IPythonConsole
     
-    graph1, graph2 = ddec6_to_graph('Examples/ddec6/CH2CHCH3CH3/DDEC6_even_tempered_bond_orders.xyz')
+    graph = ddec6_to_graph('Examples/ddec6/CH2CHCH3CH3/DDEC6_even_tempered_bond_orders.xyz')
     
-    dsg(graph1)
-    dsg(graph2)
+    dsg(graph)
+    
+    helper = atoms_helper(remove_small_edges(graph))
+    
+    helper.gen_ads_subgraph(1)
+    
+    mol = graph_to_mol(helper.ads_subgraph)
+    
+    mol[0]
+    
+    mol_to_graph_test = mol_to_graph(mol[0])
+    
+    dsg(mol_to_graph_test, edge_labels = True)
     
    #  graph = ddec6_read('Examples/ddec6/CHOH')
    #  atoms = graph_to_atoms(graph)
