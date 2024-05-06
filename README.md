@@ -10,6 +10,9 @@ Comparing full NetworkX graphs is slow, so I hash them first with the NetworkX W
 
 
 Look at these papers for more on subgraph enumeration:
+
 https://pubs-rsc-org.udel.idm.oclc.org/en/content/articlelanding/2018/re/c7re00210f
+
 https://pubs-acs-org.udel.idm.oclc.org/doi/full/10.1021/acs.jcim.0c00699
+
 https://www-nature-com.udel.idm.oclc.org/articles/s41598-021-93854-w
