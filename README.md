@@ -4,7 +4,7 @@ You can then make a subgraph of the adsorbate and however many extra slab atoms 
 
 You can get all subgraphs from an input graph. This uses the RDkit functionality to do so. Think Benson's Group Additivity, but for all subgraphs instead of Benson's groups. 
 
-Pending: with a set of molecules (or adsorbate systems), you can enumerate all the subgraphs. 
+You can put a bunch of adsorbed systems or whatever into the Subgraph Enumerator object and it'll enumerate those subgraphs for you and return the subgraph frequency matrix, or just the counter. 
 Comparing full NetworkX graphs is slow, so I hash them first with the NetworkX Weisfeiler-Lehman has, and for whatever reason, that's faster. There's probably a trade-off with accuracy, but I leave that as an exercise for the reader.
 
 
